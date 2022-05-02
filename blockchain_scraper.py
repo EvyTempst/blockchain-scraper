@@ -1,5 +1,7 @@
+from threading import local
 import requests
 from bs4 import BeautifulSoup
+import pymongo as mongo
 
 def clean_data(rawdata):
     rawdata = rawdata.replace("Hash","")
@@ -11,7 +13,9 @@ def clean_data(rawdata):
        
     return rawdata
 
-
+myclient = mongo.MongoClient("mongodb://localhost:27017")
+hash_db = myclient["hashes"]
+col_hashes = hash_db["hashes"]
 url = "https://www.blockchain.com/btc/unconfirmed-transactions"
 
 lijst = []
@@ -43,11 +47,22 @@ while True:
                 btc = l[2]
                 usd = l[3]
         if l[1] > tijd: 
+            myhash = {"Hash": hoogstehash, "Time": hashtime, "BTC_value" : btc, "USD_value": usd}
+            x = col_hashes.insert_one(myhash)
             f.write("Time: " + hashtime + " Hash: " + hoogstehash + " BTC value: " + btc + " USD value: " + usd + "\n")
+            print(x.inserted_id)
             tijd = l[1]
             highest = 0 
             hoogstetekst = 0 
             lijst = []
+            myhash = {}
                     
 
     f.close()
+
+
+
+
+ 
+
+
