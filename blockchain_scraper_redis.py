@@ -1,7 +1,11 @@
-from threading import local
+
 import requests
 from bs4 import BeautifulSoup
 import pymongo as mongo
+import redis
+import json
+import time
+
 
 def clean_data(rawdata):
     rawdata = rawdata.replace("Hash","")
@@ -21,11 +25,14 @@ url = "https://www.blockchain.com/btc/unconfirmed-transactions"
 lijst = []
 highest = 0
 tijd= ""
+highest_btc = 0
+
+r = redis.Redis ()
+r.flushall() 
 
 while True:
     request = requests.get(url)
     soupbs = BeautifulSoup(request.text, "html.parser")
-    f = open("biggest_hashes.log", "a")
     texts = soupbs.find_all("div", {"class" : "sc-1g6z4xm-0 hXyplo"})
 
     for t in texts:
@@ -33,32 +40,38 @@ while True:
         text = clean_data(text)
         text = text.split(" ")
         lijst.append(text)
-
+        
     lijst.reverse()
 
     if len(tijd) == 0:
             tijd = text[1]  
     for l in lijst:    
-        if l[1] == tijd: 
-            if float(l[2]) > highest:
-                highest = float(l[2])
-                hoogstehash = l[0]
-                hashtime = l[1]
-                btc = l[2]
-                usd = l[3]
+        if l[1] == tijd:  
+            x = {"Hash": l[0], "Time": l[1], "BTC_value" : float(l[2]), "USD_value": l[3]}
+            
+            if float(x["BTC_value"]) > float(highest_btc):
+                res = r.lpush("time",str(x))
+                highest_btc = x["BTC_value"]
+            elif float(x["BTC_value"]) < float(highest_btc):
+                res = r.rpush("time",str(x))       
+                 
         if l[1] > tijd: 
-            myhash = {"Hash": hoogstehash, "Time": hashtime, "BTC_value" : btc, "USD_value": usd}
+            first = (r.lindex("time",0).decode('utf-8')).replace("\'","\"")
+            r.flushall()
+            di = json.loads(first)
+            myhash = di
             x = col_hashes.insert_one(myhash)
-            f.write("Time: " + hashtime + " Hash: " + hoogstehash + " BTC value: " + btc + " USD value: " + usd + "\n")
             print(x.inserted_id)
             tijd = l[1]
-            highest = 0 
-            hoogstetekst = 0 
             lijst = []
             myhash = {}
+            highest_btc = 0 
+            
+            
                     
 
-    f.close()
+
+
 
 
 
